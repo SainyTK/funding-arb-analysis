@@ -224,6 +224,7 @@ class ApolloxFetcher:
         params = {
             "symbol": symbol,
             "interval": timeframe,
+            "limit": 1000
         }
         if start_time is not None:
             params["startTime"] = int(start_time * 1000)  # Convert to ms

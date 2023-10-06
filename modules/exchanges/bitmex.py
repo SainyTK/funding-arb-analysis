@@ -77,9 +77,10 @@ class BitmexFetcher:
         cur = datetime.fromtimestamp(end_time)
         while True:
             data = self._fetch_hourly_ohlc_by_month(symbol, cur.year, cur.month)
-            if not data or cur.timestamp() < start_time:
+            if cur.timestamp() < start_time:
                 break
-            result.extend(data)
+            if data is not None:
+                result.extend(data)
             cur = cur - timedelta(days=31)
         return self._format_ohlc(result)
     
