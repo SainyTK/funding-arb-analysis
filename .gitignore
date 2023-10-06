@@ -1,0 +1,16 @@
+venv/
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+.Python
+*.log
+.ipynb_checkpoints/
+modules/data
+data
+
+.env
+cache/
+
+output
+images
