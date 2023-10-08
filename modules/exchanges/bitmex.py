@@ -240,6 +240,7 @@ class BitmexFetcher:
             "symbol": symbol,
             "binSize": timeframe,
             "reverse": "true",
+            "count": 1000
         }
         if start_time is not None:
             params["startTime"] = datetime.fromtimestamp(start_time).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
