@@ -242,11 +242,12 @@ class BitmexFetcher:
             "reverse": "true",
             "count": 1000
         }
+
         if start_time is not None:
             params["startTime"] = datetime.fromtimestamp(start_time).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
         if end_time is not None:
             params["endTime"] = datetime.fromtimestamp(end_time).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
-
+        
         response = requests.get(url, params=params)
         if response.status_code == 200:
             return response.json()
