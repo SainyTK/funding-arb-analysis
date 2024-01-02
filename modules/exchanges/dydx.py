@@ -5,7 +5,6 @@ import os
 import json
 from glob import glob
 
-
 class DYDXFetcher:
     funding_interval = 8
     markets_base = {}

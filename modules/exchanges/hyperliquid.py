@@ -68,7 +68,7 @@ class HyperLiquidFetcher:
             if not data:
                 break
             result.extend(data)
-            cur = cur - timedelta(days=31)
+            cur = cur - timedelta(days=calendar.monthrange(cur.year, cur.month)[1])
         return self._format_funding_rate_history(result)
     
     # Format functions

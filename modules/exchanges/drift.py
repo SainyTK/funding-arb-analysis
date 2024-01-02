@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import os
 import json
-
+import calendar
 
 class DriftMarketFetcher:
     funding_interval = 1
@@ -99,7 +99,7 @@ class DriftMarketFetcher:
             if not data:
                 break
             result.extend(data)
-            cur = cur - timedelta(days=31)
+            cur = cur - timedelta(days=cur.day)
         return self._format_funding_rate_history(result)
     
     def fetch_hourly_ohlc(self, symbol, start_time, end_time):
@@ -111,7 +111,7 @@ class DriftMarketFetcher:
                 break
             if data is not None:
                 result.extend(data)
-            cur = cur - timedelta(days=31)
+            cur = cur - timedelta(days=cur.day)
         return self._format_ohlc(result)
     
     # Format functions
@@ -240,6 +240,7 @@ class DriftMarketFetcher:
             return None
         
     def _fetch_ohlc(self, symbol, timeframe, year, month):
+        print(symbol, timeframe, year, month)
         url = f"https://drift-historical-data.s3.eu-west-1.amazonaws.com/program/dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH/market/{symbol}/candles/{year}/{month}/resolution/{timeframe}"
         response = requests.get(url)
 

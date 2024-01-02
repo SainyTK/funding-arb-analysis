@@ -74,7 +74,7 @@ class ZetaFetcher:
                 break
             timestamps.extend(data['t'])
             funding_rates.extend(data['o'])
-            cur = cur - timedelta(days=31)
+            cur = cur - timedelta(days=calendar.monthrange(cur.year, cur.month)[1])
         data = {
             "timestamp": timestamps,
             "funding_rate": funding_rates

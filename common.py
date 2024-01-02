@@ -41,15 +41,15 @@ def get_backtest_result(input_df, l, fee = 0.001, maintenance_margin = 0.05, sto
     df = input_df.copy()
     for index, row in enumerate(df.iterrows()):
         if index == 0:
-            df['clt'] = 1
+            df['clt'] = float(1)
             df['leverage'] = l
-            df['entry'] = 0
-            df['pos_size'] = 0
-            df['change'] = 0
-            df['change_pnl'] = 0
-            df['funding'] = 0
-            df['funding_pnl'] = 0
-            df['margin'] = 0
+            df['entry'] = float(0)
+            df['pos_size'] = float(0)
+            df['change'] = float(0)
+            df['change_pnl'] = float(0)
+            df['funding'] = float(0)
+            df['funding_pnl'] = float(0)
+            df['margin'] = float(0)
 
             df['mm'] = df['clt'] * df['leverage'] * maintenance_margin
             df['mm_sl'] = df['clt'] * df['leverage'] * stop_loss_margin
@@ -58,7 +58,7 @@ def get_backtest_result(input_df, l, fee = 0.001, maintenance_margin = 0.05, sto
             df['is_sl'] = False
 
             df['fee'] = -fee * df['leverage']
-            df['final_pnl'] = 0
+            df['final_pnl'] = float(0)
         else:
             prev_df = df.loc[index - 1]
             # check if is there was a trade in the previous record
@@ -68,25 +68,25 @@ def get_backtest_result(input_df, l, fee = 0.001, maintenance_margin = 0.05, sto
             new_clt = prev_df['clt'] + prev_df['fee'] + (prev_df['funding_pnl'] if traded else 0)
 
             if new_clt == 0:
-                df.loc[index, 'clt'] = 0
-                df.loc[index, 'entry'] = 0
-                df.loc[index, 'pos_size'] = 0
-                df.loc[index, 'change'] = 0
-                df.loc[index, 'change_pnl'] = 0
-                df.loc[index, 'funding'] = 0
-                df.loc[index, 'funding_pnl'] = 0
-                df.loc[index, 'margin'] = 0
-                df.loc[index, 'mm'] = 0
-                df.loc[index, 'mm_sl'] = 0
+                df.loc[index, 'clt'] = float(0)
+                df.loc[index, 'entry'] = float(0)
+                df.loc[index, 'pos_size'] = float(0)
+                df.loc[index, 'change'] = float(0)
+                df.loc[index, 'change_pnl'] = float(0)
+                df.loc[index, 'funding'] = float(0)
+                df.loc[index, 'funding_pnl'] = float(0)
+                df.loc[index, 'margin'] = float(0)
+                df.loc[index, 'mm'] = float(0)
+                df.loc[index, 'mm_sl'] = float(0)
                 df.loc[index, 'is_liq'] = False
                 df.loc[index, 'is_sl'] = False
-                df.loc[index, 'fee'] = 0
+                df.loc[index, 'fee'] = float(0)
                 df.loc[index, 'final_pnl'] = -1
             else:
                 price = float(df.loc[index, 'close'])
                 funding_rate = float(df.loc[index, 'funding_rate'])
 
-                df.loc[index, 'clt'] = max(new_clt, 0)
+                df.loc[index, 'clt'] = max(new_clt, float(0))
                 # Entry price of the current position
                 df.loc[index, 'entry'] = price if traded else prev_df['entry']
                 # Size of the current position
@@ -119,7 +119,19 @@ def get_backtest_result(input_df, l, fee = 0.001, maintenance_margin = 0.05, sto
     return df
 
 # Util functions for calculating pnl (long + short futures)
-def get_dual_backtest_result(long_df, short_df, leverage, init_clt = 1, fee_percent = 0.001, stop_loss_margin = 0.0625):
+def get_dual_backtest_result(long_df, short_df, period_factor, leverage, init_clt = 1, fee_percent = 0.001, stop_loss_margin = 0.0625):
+
+    df = pd.merge_asof(long_df, short_df, on='timestamp')
+
+    long_df = df
+    long_df[['datetime', 'close', 'funding_rate']] = df[['datetime_x', 'close_x', 'funding_rate_x']]
+    long_df = long_df[['datetime', 'close', 'funding_rate']]
+    long_df.loc[:, 'funding_rate'] = long_df['funding_rate']
+
+    short_df = df
+    short_df[['datetime', 'close', 'funding_rate']] = df[['datetime_y', 'close_y', 'funding_rate_y']]
+    short_df = short_df[['datetime', 'close', 'funding_rate']]
+    short_df.loc[:, 'funding_rate'] = short_df['funding_rate'] * period_factor
 
     for index, row in enumerate(long_df.iterrows()):
         if index == 0:
@@ -148,7 +160,15 @@ def get_dual_backtest_result(long_df, short_df, leverage, init_clt = 1, fee_perc
                 long_df.loc[index] = record_row(long_df.loc[index], long_df.loc[index - 1], stop_loss_margin)
                 short_df.loc[index] = record_row(short_df.loc[index], short_df.loc[index - 1], stop_loss_margin)
     
-    return (long_df, short_df)
+    result_df = long_df.copy()
+    result_df[['long_close', 'long_funding', 'long_pnl']] = long_df[['close', 'funding_rate', 'pnl']]
+    result_df[['short_close', 'short_funding', 'short_pnl']] = short_df[['close', 'funding_rate', 'pnl']]
+
+    result_df['datetime'] = long_df['datetime']
+    result_df['total_pnl'] = long_df['pnl'] + short_df['pnl']
+    result_df = result_df[['datetime', 'long_close', 'short_close', 'long_funding', 'short_funding', 'long_pnl', 'short_pnl', 'total_pnl']]
+
+    return (result_df, long_df, short_df)
 
 # Util functions for hodl pnl
 def get_hodl_result(input_df):
@@ -181,108 +201,95 @@ def load_cache_data(exchange, market):
     return pd.read_csv(get_cache_path(exchange, market))
 
 def init_backtest_df(df, clt, leverage):
-    df['is_trade'] = False
+    new_df = df.copy()
+    new_df.loc[:, 'is_trade'] = False
 
-    df['inj'] = clt
-    df['eq'] = clt
-    df['clt'] = clt
+    new_df.loc[:, 'inj'] = float(clt)
+    new_df.loc[:, 'eq'] = float(clt)
+    new_df.loc[:, 'clt'] = float(clt)
 
-    df['leverage'] = leverage
-    df['entry'] = 0
-    df['pos_size'] = 0
-    df['d'] = 0
+    new_df.loc[:, 'leverage'] = leverage
+    new_df.loc[:, 'entry'] = float(0)
+    new_df.loc[:, 'pos_size'] = float(0)
+    new_df.loc[:, 'd'] = 0
 
-    df['change'] = 0
-    df['change_pnl'] = 0
-    df['funding'] = 0
-    df['funding_pnl'] = 0
-    df['margin'] = 0
+    new_df.loc[:, 'change'] = float(0)
+    new_df.loc[:, 'change_pnl'] = float(0)
+    new_df.loc[:, 'funding'] = float(0)
+    new_df.loc[:, 'funding_pnl'] = float(0)
+    new_df.loc[:, 'margin'] = float(0)
 
-    df['mm_sl'] = 0
+    new_df.loc[:, 'mm_sl'] = float(0)
 
-    df['is_sl'] = False
+    new_df.loc[:, 'is_sl'] = False
 
-    df['fee'] = 0
-    df['pnl'] = 0
+    new_df.loc[:, 'fee'] = float(0)
+    new_df.loc[:, 'pnl'] = float(0)
 
-    return df
+    return new_df
 
 def make_trade(row, prev_row, fee_percent, stop_loss_margin, side, inj):
-    row['is_trade'] = True
+    new_row = row.copy()
 
-    price = float(row['close'])
+    new_row['is_trade'] = True
+
+    price = float(new_row['close'])
     d = 1 if side == 'long' else -1
 
     new_clt = prev_row['clt'] + prev_row['change_pnl'] + prev_row['funding_pnl'] + inj
 
-    fee = new_clt * row['leverage'] * fee_percent
+    fee = new_clt * new_row['leverage'] * fee_percent
     new_clt = new_clt - fee
 
-    row['inj'] = inj
-    row['eq'] = prev_row['eq'] + inj
+    new_row['inj'] = inj
+    new_row['eq'] = prev_row['eq'] + inj
 
-    row['clt'] = max(new_clt, 0)
-    row['d'] = d
-    row['entry'] = price
-    row['pos_size'] = row['clt'] * prev_row['leverage'] * d / price
+    new_row['clt'] = max(new_clt, 0)
+    new_row['d'] = d
+    new_row['entry'] = price
+    new_row['pos_size'] = new_row['clt'] * prev_row['leverage'] * d / price
 
-    row['change'] = 0
-    row['change_pnl'] = 0
-    row['funding'] = 0
-    row['funding_pnl'] = 0
+    new_row['change'] = 0
+    new_row['change_pnl'] = 0
+    new_row['funding'] = 0
+    new_row['funding_pnl'] = 0
 
-    row['margin'] = row['clt']
-    row['mm_sl'] = row['clt'] * row['leverage'] * stop_loss_margin
+    new_row['margin'] = new_row['clt']
+    new_row['mm_sl'] = new_row['clt'] * new_row['leverage'] * stop_loss_margin
 
-    row['is_sl'] = row['margin'] < row['mm_sl']
-    row['fee'] = fee
+    new_row['is_sl'] = new_row['margin'] < new_row['mm_sl']
+    new_row['fee'] = fee
 
-    row['pnl'] = row['margin'] - row['eq']
-    return row
+    new_row['pnl'] = new_row['margin'] - new_row['eq']
+    return new_row
 
 def record_row(row, prev_row, stop_loss_margin):
-    row['is_trade'] = False
+    new_row = row.copy()
 
-    price = float(row['close'])
-    funding_rate = float(row['funding_rate'])
+    new_row['is_trade'] = False
 
-    row['inj'] = 0
-    row['eq'] = prev_row['eq'] + row['inj']
+    price = float(new_row['close'])
+    funding_rate = float(new_row['funding_rate'])
 
-    row['clt'] = prev_row['clt']
-    row['d'] = prev_row['d']
-    row['entry'] = prev_row['entry']
-    row['pos_size'] = prev_row['pos_size']
+    new_row['inj'] = 0
+    new_row['eq'] = prev_row['eq'] + new_row['inj']
 
-    row['change'] = (price - row['entry'])
-    row['change_pnl'] = row['change'] * row['pos_size']
+    new_row['clt'] = prev_row['clt']
+    new_row['d'] = prev_row['d']
+    new_row['entry'] = prev_row['entry']
+    new_row['pos_size'] = prev_row['pos_size']
 
-    row['funding'] = -funding_rate * row['pos_size'] * price
-    row['funding_pnl'] = prev_row['funding_pnl'] + row['funding']
+    new_row['change'] = (price - new_row['entry'])
+    new_row['change_pnl'] = new_row['change'] * new_row['pos_size']
 
-    row['margin'] = row['clt'] + row['change_pnl'] + row['funding_pnl']
-    row['mm_sl'] = row['clt'] * row['leverage'] * stop_loss_margin
+    new_row['funding'] = -funding_rate * new_row['pos_size'] * price
+    new_row['funding_pnl'] = prev_row['funding_pnl'] + new_row['funding']
 
-    row['is_sl'] = row['margin'] < row['mm_sl']
-    row['fee'] = 0
+    new_row['margin'] = new_row['clt'] + new_row['change_pnl'] + new_row['funding_pnl']
+    new_row['mm_sl'] = new_row['clt'] * new_row['leverage'] * stop_loss_margin
 
-    row['pnl'] = row['margin'] - row['eq']
-    return row
+    new_row['is_sl'] = new_row['margin'] < new_row['mm_sl']
+    new_row['fee'] = 0
 
-if __name__ == "__main__":
-    cache_drift_df = load_cache_data("drift", "BNB-PERP")
-    cache_binance_df = load_cache_data("binance", "BNBUSDT")
-
-    df = pd.merge_asof(cache_drift_df, cache_binance_df, on='timestamp')
-
-    drift_df = df
-    drift_df[['datetime', 'close', 'funding_rate']] = df[['datetime_x', 'close_x', 'funding_rate_x']]
-    drift_df = drift_df[['close', 'funding_rate']]
-
-    binance_df = df
-    binance_df[['datetime', 'close', 'funding_rate']] = df[['datetime_y', 'close_y', 'funding_rate_y']]
-    binance_df = binance_df[['close', 'funding_rate']]
-    binance_df['funding_rate'] = binance_df['funding_rate'] / 8
-
-    (result1, result2) = get_dual_backtest_result(drift_df, binance_df, 5)
-    print(result1)
+    new_row['pnl'] = new_row['margin'] - new_row['eq']
+    return new_row
