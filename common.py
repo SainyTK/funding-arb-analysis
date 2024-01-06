@@ -119,7 +119,7 @@ def get_backtest_result(input_df, l, fee = 0.001, maintenance_margin = 0.05, sto
     return df
 
 # Util functions for calculating pnl (long + short futures)
-def get_dual_backtest_result(long_df, short_df, period_factor, leverage, init_clt = 1, fee_percent = 0.001, stop_loss_margin = 0.0625):
+def get_dual_backtest_result(long_df, short_df, long_funding_freq, short_funding_freq, leverage, init_clt = 1, fee_percent = 0.001, stop_loss_margin = 0.0625):
 
     df = pd.merge_asof(long_df, short_df, on='timestamp')
 
@@ -129,9 +129,9 @@ def get_dual_backtest_result(long_df, short_df, period_factor, leverage, init_cl
     long_df.loc[:, 'funding_rate'] = long_df['funding_rate']
 
     short_df = df
-    short_df[['datetime', 'close', 'funding_rate']] = df[['datetime_y', 'close_y', 'funding_rate_y']]
+    short_df[['datetime', 'close', 'funding_rate']] = df[['datetime_y', 'close_x', 'funding_rate_y']] # Use the same price reference to avoid fluctuation
     short_df = short_df[['datetime', 'close', 'funding_rate']]
-    short_df.loc[:, 'funding_rate'] = short_df['funding_rate'] * period_factor
+    short_df.loc[:, 'funding_rate'] = short_df['funding_rate'] * long_funding_freq / short_funding_freq
 
     for index, row in enumerate(long_df.iterrows()):
         if index == 0:
@@ -161,12 +161,12 @@ def get_dual_backtest_result(long_df, short_df, period_factor, leverage, init_cl
                 short_df.loc[index] = record_row(short_df.loc[index], short_df.loc[index - 1], stop_loss_margin)
     
     result_df = long_df.copy()
-    result_df[['long_close', 'long_funding', 'long_pnl']] = long_df[['close', 'funding_rate', 'pnl']]
-    result_df[['short_close', 'short_funding', 'short_pnl']] = short_df[['close', 'funding_rate', 'pnl']]
+    result_df[['close', 'long_funding', 'long_pnl']] = long_df[['close', 'funding_rate', 'pnl']]
+    result_df[['short_funding', 'short_pnl']] = short_df[['funding_rate', 'pnl']]
 
     result_df['datetime'] = long_df['datetime']
     result_df['total_pnl'] = long_df['pnl'] + short_df['pnl']
-    result_df = result_df[['datetime', 'long_close', 'short_close', 'long_funding', 'short_funding', 'long_pnl', 'short_pnl', 'total_pnl']]
+    result_df = result_df[['datetime', 'close', 'long_funding', 'short_funding', 'long_pnl', 'short_pnl', 'total_pnl']]
 
     return (result_df, long_df, short_df)
 
