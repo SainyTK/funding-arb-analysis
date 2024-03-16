@@ -5,6 +5,8 @@ import numpy as np
 import os
 import json
 import calendar
+import asyncio
+from multiprocessing import Pool
 
 class DriftMarketFetcher:
     funding_interval = 1
@@ -223,9 +225,31 @@ class DriftMarketFetcher:
         return data
         
     def _fetch_funding_rate_history(self, symbol, year, month):
-        url = f"https://drift-historical-data.s3.eu-west-1.amazonaws.com/program/dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH/market/{symbol}/funding-rates/{year}/{month}"
+        # Change fetching type to suit the device calling this function
+        values = self._fetch_funding_rate_history_all_day_async(symbol, year, month)
+        result = []
+        for item in values:
+            if item is not None:
+                result.extend(item)
+        return result
+        
+    # This function consumes a lot of CPU as it concurrently fetches data. Consider using sync alternative to reduce CPU usage
+    def _fetch_funding_rate_history_all_day_async(self, symbol, year, month):
+        num_days_in_month = calendar.monthrange(year, month)[1]
+        with Pool(processes=num_days_in_month) as pool:
+            values = pool.starmap(self._fetch_funding_rate_history_by_day, [(symbol, year, month, day + 1) for day in range(num_days_in_month)])
+        return values
+    
+    # This function consumes less CPU but processes in sequence, making it much slower than the async approach
+    def _fetch_funding_rate_history_all_day_sync(self, symbol, year, month):
+        num_days_in_month = calendar.monthrange(year, month)[1]
+        values = [self._fetch_funding_rate_history_by_day(symbol, year, month, day + 1) for day in range(num_days_in_month)]
+        return values
+    
+    def _fetch_funding_rate_history_by_day(self, symbol, year, month, day):
+        url = f"https://drift-historical-data-v2.s3.eu-west-1.amazonaws.com/program/dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH/market/{symbol}/fundingRateRecords/{year}/{year}{month:02}{day:02}"
         response = requests.get(url)
-
+        
         if response.status_code == 200:
             lines = response.text.strip().split("\n")
             header = lines[0].split(",")
@@ -240,7 +264,6 @@ class DriftMarketFetcher:
             return None
         
     def _fetch_ohlc(self, symbol, timeframe, year, month):
-        print(symbol, timeframe, year, month)
         url = f"https://drift-historical-data.s3.eu-west-1.amazonaws.com/program/dRiftyHA39MWEi3m9aunc5MzRF1JYuBsbn6VPcn33UH/market/{symbol}/candles/{year}/{month}/resolution/{timeframe}"
         response = requests.get(url)
 
@@ -255,5 +278,48 @@ class DriftMarketFetcher:
             return data
         else:
             print(f"Drift {symbol} Error: {response.status_code}")
-            return None
+            print(f"Use fallback {symbol}...")
+            return self._fetch_fallback_ohlc(symbol, year, month)
 
+    def _fetch_fallback_ohlc(self, symbol, year, month):
+        url = "https://fapi.binance.com/fapi/v1/klines"
+        
+        binance_symbol = symbol.replace("-PERP", "USDT")
+        
+        params = {
+            "symbol": binance_symbol,
+            "interval": "1h",
+            "limit": 1000
+        }
+        
+        now = datetime.now().timestamp()
+        start_time = datetime(year, month, 1).timestamp()
+
+        # Get the number of days in the given month and year
+        num_days_in_month = calendar.monthrange(year, month)[1]
+        end_time = (datetime(year, month, 1) + timedelta(days=num_days_in_month)).timestamp()
+        end_time = min(end_time, now)
+        
+        if start_time is not None:
+            params["startTime"] = int(start_time * 1000)  # Convert to ms
+        if end_time is not None:
+            params["endTime"] = int(end_time * 1000)  # Convert to ms
+
+        response = requests.get(url, params=params)
+        if response.status_code == 200:
+            binance_price = response.json()
+            drift_price = [{
+                "start": str(item[0]),
+                "open": item[1],
+                "close": item[4],
+                "high": item[2],
+                "low": item[3],
+                "quoteVolume": item[7],
+                "baseVolume": item[5],
+                "resolution": "60",
+                "recordKey": str(item[0])
+            } for item in binance_price]
+            return drift_price
+        else:
+            print(f"Drift fallback price {symbol} Error: {response.status_code}")
+            return None
