@@ -121,10 +121,12 @@ class DriftMarketFetcher:
         df = pd.DataFrame(data, columns=["ts", "fundingRate", "oraclePriceTwap"])
         df.dropna(inplace=True)
 
-        df["funding_rate"] = (
-            df["fundingRate"].astype(float) / np.power(10, self.funding_rate_persision)
-        ) / (df["oraclePriceTwap"].astype(float) / np.power(10, self.price_precision))
-
+        # df["funding_rate"] = (
+        #     df["fundingRate"].astype(float) / np.power(10, self.funding_rate_persision)
+        # ) / (df["oraclePriceTwap"].astype(float) / np.power(10, self.price_precision))
+        
+        df["funding_rate"] = df["fundingRate"].astype(float) / df["oraclePriceTwap"].astype(float)
+        
         df["datetime"] = pd.to_datetime(df["ts"].astype(int), unit="s")
         df['timestamp'] = df['datetime'].apply(lambda x: x.timestamp())
         df.sort_values(by=["datetime"], ascending=True, inplace=True)
@@ -133,6 +135,14 @@ class DriftMarketFetcher:
         return df[["datetime", "timestamp", "funding_rate"]]
     
     def _format_ohlc(self, data):
+        # Fix dirty Drift data
+        for index, item in enumerate(data):
+            keys = ["start", "open", "close", "high", "low", "quoteVolume", "baseVolume", "resolution", "recordKey"]
+            for k in keys:
+                if f"\"{k}\"" in item.keys():
+                    data[index][f"{k}"] = item[f"\"{k}\""].replace("\"", '').replace("\"", '')
+        
+        # Construct dataframe
         df = pd.DataFrame(data, columns=["start", "open", "high", "low", "close", "fillOpen", "fillHigh", "fillLow", "fillClose"])
 
         df['start'] = df['start'].astype(int) * 1000 * 1000
@@ -174,7 +184,7 @@ class DriftMarketFetcher:
             print(f"Error: {response.status_code}")
             return None
 
-    def _fetch_funding_rate_history_by_month(self, symbol, year, month):
+    def _fetch_funding_rate_history_by_month(self, symbol, year, month, skip_refresh = True):
         dirname = os.path.dirname(__file__)
         folder_path = os.path.join(dirname, f"../data/drift/funding/{symbol}")
         file_path = os.path.join(dirname, f"{folder_path}/{symbol}_{year}_{month}.json")
@@ -183,14 +193,14 @@ class DriftMarketFetcher:
         file_existed = os.path.exists(file_path)
         is_same_month = now.year == year and now.month == month
 
-        if file_existed and not is_same_month:
+        if file_existed and (not is_same_month or skip_refresh):
             with open(file_path, "r") as f:
                 data = json.load(f)
             return data
-
+        
         if not os.path.exists(folder_path):
             os.makedirs(folder_path)
-
+        
         data = self._fetch_funding_rate_history(symbol, year, month)
 
         if data:
@@ -199,7 +209,7 @@ class DriftMarketFetcher:
         
         return data
     
-    def _fetch_hourly_ohlc_by_month(self, symbol, year, month):
+    def _fetch_hourly_ohlc_by_month(self, symbol, year, month, skip_refresh = True):
         dirname = os.path.dirname(__file__)
         folder_path = os.path.join(dirname, f"../data/drift/prices/{symbol}")
         file_path = os.path.join(dirname, f"{folder_path}/{symbol}_{year}_{month}.json")
@@ -208,7 +218,7 @@ class DriftMarketFetcher:
         file_existed = os.path.exists(file_path)
         is_same_month = now.year == year and now.month == month
 
-        if file_existed and not is_same_month:
+        if file_existed and (not is_same_month or skip_refresh):
             with open(file_path, "r") as f:
                 data = json.load(f)
             return data
@@ -236,9 +246,13 @@ class DriftMarketFetcher:
     # This function consumes a lot of CPU as it concurrently fetches data. Consider using sync alternative to reduce CPU usage
     def _fetch_funding_rate_history_all_day_async(self, symbol, year, month):
         num_days_in_month = calendar.monthrange(year, month)[1]
-        with Pool(processes=num_days_in_month) as pool:
-            values = pool.starmap(self._fetch_funding_rate_history_by_day, [(symbol, year, month, day + 1) for day in range(num_days_in_month)])
-        return values
+        first_result = self._fetch_funding_rate_history_by_day(symbol, year, month, 1)
+        if first_result is not None:
+            with Pool(processes=num_days_in_month) as pool:
+                values = pool.starmap(self._fetch_funding_rate_history_by_day, [(symbol, year, month, day + 2) for day in range(num_days_in_month)])
+                values.insert(0, first_result)
+            return values
+        return []
     
     # This function consumes less CPU but processes in sequence, making it much slower than the async approach
     def _fetch_funding_rate_history_all_day_sync(self, symbol, year, month):
@@ -260,7 +274,6 @@ class DriftMarketFetcher:
                 data.append(item)
             return data
         else:
-            print(f"Drift {symbol} Error: {response.status_code}")
             return None
         
     def _fetch_ohlc(self, symbol, timeframe, year, month):
@@ -277,7 +290,6 @@ class DriftMarketFetcher:
                 data.append(item)
             return data
         else:
-            print(f"Drift {symbol} Error: {response.status_code}")
             print(f"Use fallback {symbol}...")
             return self._fetch_fallback_ohlc(symbol, year, month)
 
