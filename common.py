@@ -190,6 +190,15 @@ def max_drawdown(values):
 
     return drawdowns.max()
 
+# Util functions for sharpe ratio calculation
+def sharpe_ratio(values, risk_free_rate = 0.01):
+    excess_returns = values - risk_free_rate
+    mean_excess_return = excess_returns.mean()
+    std_excess_return = excess_returns.std()
+    sharpe_ratio = mean_excess_return / std_excess_return
+    
+    return sharpe_ratio
+
 # Util functions for managing cache data
 def get_cache_path(exchange, market):
     return f'./data/{exchange}_{market}.csv'
