@@ -27,7 +27,7 @@ class BinanceFetcher:
             "exchange": "binance",
             "market": market,
             "timestamp": raw["closeTime"],
-            "volume": float(raw["volume"]) if raw else 0,
+            "volume": float(raw["quoteVolume"]) if raw else 0,
         }
 
     def fetch_annualized_average_funding_rate(self, market):

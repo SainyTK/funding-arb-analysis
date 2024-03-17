@@ -1,5 +1,6 @@
 import pandas as pd
 from modules.fetcher import Fetcher
+import json
 
 # Util function for fetching data
 def fetch_data(exchange, market):
@@ -35,6 +36,12 @@ def fetch_data(exchange, market):
     result_df['datetime'] = result_df['datetime'].apply(lambda x: pd.to_datetime(x))
 
     return result_df[['datetime', 'timestamp', 'open', 'high', 'low', 'close', 'funding_rate']]
+
+def fetch_24h_vol(exchange, market):
+    fetcher = Fetcher()
+    vol = fetcher.fetch_24h_vol(exchange, market)
+
+    return vol
 
 # Util functions for calculating pnl (long spot, short future)
 def get_backtest_result(input_df, l, fee = 0.001, maintenance_margin = 0.05, stop_loss_margin = 0.0625):
@@ -208,6 +215,12 @@ def save_cache_data(exchange, market, data_df):
 
 def load_cache_data(exchange, market):
     return pd.read_csv(get_cache_path(exchange, market))
+
+def load_volume_data():
+    file_path = "./storage/volume.json"
+    with open(file_path, "r") as f:
+        data = json.load(f)
+    return data
 
 def init_backtest_df(df, clt, leverage):
     new_df = df.copy()
