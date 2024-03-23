@@ -172,8 +172,8 @@ def get_dual_backtest_result(long_df, short_df, long_funding_freq, short_funding
     result_df[['short_funding', 'short_pnl']] = short_df[['funding_rate', 'pnl']]
 
     result_df['datetime'] = long_df['datetime']
-    result_df['total_pnl'] = long_df['pnl'] + short_df['pnl']
-    result_df = result_df[['datetime', 'close', 'long_funding', 'short_funding', 'long_pnl', 'short_pnl', 'total_pnl']]
+    result_df['final_pnl'] = long_df['pnl'] + short_df['pnl']
+    result_df = result_df[['datetime', 'close', 'long_funding', 'short_funding', 'long_pnl', 'short_pnl', 'final_pnl']]
 
     return (result_df, long_df, short_df)
 
