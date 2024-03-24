@@ -2,7 +2,9 @@
 This repository is used for funding rate data analysis. It contains scripts to download funding rate and price data from multiple exchanges (both CEX and DEX). The downloaded data is then analyzed using Jupyter notebook and Pandas library. 
 
 ## Setup
-Install dependencies
+1. Create virtual env
+`poetry shell`
+2. Install dependencies
 `poetry install`
 
 ## Data analytic procedure
@@ -16,3 +18,12 @@ Install dependencies
 4. `nb_plot_market_size_impact.ipynb`: Plot a scatter plot of market size along with funding rate arbitrage PNL.
 5. `nb_plot_return.ipynb`: Plot PNL time series of BTC and XRP across 4 exchanges (Binance, Bitmex, ApolloX, and Drift).
 6. `nb_plot_lev_bar.ipynb`: Plot a bar chart showing leverage levels with PNL for a specified market.
+
+## Example charts
+<div style="display:grid; width: 768px; row-gap: 8px; column-gap: 8px; grid-template-columns: auto auto;">
+    <img src="./example_images/pnl_heatmap.png" alt="PNL Heatmap"/>
+    <img src="./example_images/corr_XRP.png" alt="Correlation Matrix"/>
+    <img src="./example_images/leverage_bar_SOL.png" alt="Leverage Bar Chart"/>
+    <img src="./example_images/market_size_pnl.png" alt="Market Size Scatter"/>
+    <img src="./example_images/pnl_analysis.png" alt="PNL Time Series"/>
+</div>
