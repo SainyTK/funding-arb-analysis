@@ -9,8 +9,8 @@ __pycache__/
 modules/data
 
 .env
-cache/
+cache
 
-output
-images
+output/*
+images/*
 .venv
