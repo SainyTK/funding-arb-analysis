@@ -12,5 +12,8 @@ modules/data
 cache
 
 output/*
+!output/.gitkeep
 images/*
+!images/.gitkeep
+
 .venv

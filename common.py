@@ -1,6 +1,7 @@
 import pandas as pd
 from modules.fetcher import Fetcher
 import json
+import numpy as np
 
 # Util function for fetching data
 def fetch_data(exchange, market):
@@ -188,23 +189,18 @@ def get_hodl_result(input_df):
     return df
 
 # Util functions for max drawdown pnl
-def max_drawdown(values):
-    # Calculate the running maximum
-    running_max = values.expanding(min_periods=1).max()
-    # Calculate the drawdown
-    drawdowns = running_max - values
-    drawdowns.replace(float('inf'), 0, inplace=True)
-
-    return drawdowns.max()
+def max_drawdown(series: pd.Series):
+    equity_curve = series + 1
+    cumulative_max = equity_curve.cummax()
+    drawdowns = (equity_curve - cumulative_max) / cumulative_max
+    drawdowns.fillna(0, inplace=True)
+    return drawdowns.min()
 
 # Util functions for sharpe ratio calculation
-def sharpe_ratio(values, risk_free_rate = 0.01):
-    excess_returns = values - risk_free_rate
-    mean_excess_return = excess_returns.mean()
-    std_excess_return = excess_returns.std()
-    sharpe_ratio = mean_excess_return / std_excess_return
-    
-    return sharpe_ratio
+def sharpe_ratio(values, invest_return, risk_free_rate = 0.01, hr_interval = 1):
+    excess_returns = invest_return - risk_free_rate
+    std_excess_return = values.std() * np.sqrt(24 / hr_interval * 365) # Annualized stdev from an hour timeframe
+    return excess_returns / std_excess_return
 
 # Util functions for managing cache data
 def get_cache_path(exchange, market):
