@@ -199,7 +199,7 @@ def max_drawdown(series: pd.Series):
 # Util functions for sharpe ratio calculation
 def sharpe_ratio(values, invest_return, risk_free_rate = 0.01, hr_interval = 1):
     excess_returns = invest_return - risk_free_rate
-    std_excess_return = values.std() * np.sqrt(24 / hr_interval * 365 / 2) # Annualized stdev from an hour timeframe
+    std_excess_return = values.std() * np.sqrt((24 / hr_interval) * (365 / 2)) # 6 month stdev from an hour timeframe
     return excess_returns / std_excess_return
 
 # Util functions for managing cache data
